@@ -13,3 +13,6 @@ backups/
 .vscode/
 __pycache__/
 .DS_Store
+/dist/
+backend/src/main/resources/static/
+test-results/*.log

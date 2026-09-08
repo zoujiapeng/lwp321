@@ -76,12 +76,16 @@ public class RecordService {
         values.put("teacherAdvice",Inputs.clean(in.teacherAdvice())); values.put("agreement",Inputs.clean(in.agreement()));
         values.put("followupDate",Time.date(in.followupDate())==null?"未设置":Time.date(in.followupDate())); return values;
     }
-    public Map<String,Object> generate(Inputs.TalkInput in,Actor actor) {
-        validate(in); var student=students.get(in.studentId(),actor);
-        ApiException.require(Db.bool(student,"active"),400,"该学生档案已停用");
+    public Map<String,Object> generate(Inputs.TalkInput in,Actor actor,Long recordId) {
+        validate(in);
+        var existing=recordId==null?null:visible(recordId,actor,false);
+        if(existing!=null) ApiException.require("DRAFT".equals(Db.text(existing,"state")),409,"已归档记录不能重新生成");
+        boolean historical=existing!=null && Db.id(existing,"student_id")==in.studentId();
+        var student=historical?db.one("SELECT * FROM student WHERE id=?",in.studentId()):students.get(in.studentId(),actor);
+        ApiException.require(historical || Db.bool(student,"active"),400,"该学生档案已停用");
         requireNotes(in.studentStatement(),in.teacherAdvice(),in.agreement());
         var template=db.one("SELECT * FROM record_template WHERE id=? AND active=TRUE",in.templateId());
-        String teacher=Db.text(db.one("SELECT display_name FROM app_user WHERE id=?",actor.id()),"display_name");
+        String teacher=Db.text(db.one("SELECT display_name FROM app_user WHERE id=?",existing==null?actor.id():Db.id(existing,"teacher_id")),"display_name");
         String content=TemplateEngine.render(Db.text(template,"body"),values(in,student,teacher));
         ApiException.require(content.length()<=20000,400,"生成内容超过20000字符，请精简要点或模板");
         return Map.of("content",content,"templateTitle",Db.text(template,"title"),"message","已按要点生成草稿，请逐项核对；没有新增谈话事实");
@@ -149,7 +153,7 @@ public class RecordService {
     public List<Map<String,Object>> exportable(List<Long> ids,Actor actor) {
         ApiException.require(ids.size()>=1 && ids.size()<=50,400,"一次请选择1至50条记录");
         var unique=new LinkedHashSet<>(ids); ApiException.require(unique.size()==ids.size(),400,"导出列表不能包含重复记录");
-        for(long id:ids) visible(id,actor,false); // Validate every row before producing any export bytes.
+        for(long id:ids) visible(id,actor,false);
         var rows=new ArrayList<Map<String,Object>>();
         for(long id:ids) { rows.add(detail(id,actor)); audit.log(actor,"EXPORT_RECORD","RECORD",id,""); }
         return rows;

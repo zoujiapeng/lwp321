@@ -23,7 +23,7 @@ public class RecordController {
         return records.list(Actor.from(a),q,state,category,from,to,followup,studentId,page,size);
     }
     @GetMapping("/{id}") public Object detail(@PathVariable long id,Authentication a) { return records.detail(id,Actor.from(a)); }
-    @PostMapping("/generate") public Object generate(@Valid @RequestBody Inputs.TalkInput in,Authentication a) { return records.generate(in,Actor.from(a)); }
+    @PostMapping("/generate") public Object generate(@Valid @RequestBody Inputs.TalkInput in,@RequestParam(required=false) Long recordId,Authentication a) { return records.generate(in,Actor.from(a),recordId); }
     @PostMapping public Object create(@Valid @RequestBody Inputs.TalkInput in,Authentication a) { return records.save(null,in,Actor.from(a)); }
     @PutMapping("/{id}") public Object update(@PathVariable long id,@Valid @RequestBody Inputs.TalkInput in,Authentication a) { return records.save(id,in,Actor.from(a)); }
     @PostMapping("/{id}/archive") public Object archive(@PathVariable long id,@RequestBody Inputs.ArchiveInput in,Authentication a) { return records.archive(id,in,Actor.from(a)); }

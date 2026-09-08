@@ -18,7 +18,7 @@ async function searchStudents() {
 async function generate() {
   if (form.content.trim() && !window.confirm('重新生成将覆盖右侧正文中的人工修改，左侧原始要点保留。是否继续？')) return
   error.value = ''; busy.value = true
-  try { const result = await api('/records/generate', { method: 'POST', body: form }); form.content = result.content; notify(result.message) }
+  try { const result = await api('/records/generate' + (id ? '?recordId=' + id : ''), { method: 'POST', body: form }); form.content = result.content; notify(result.message) }
   catch (e) { error.value = e.message } finally { busy.value = false }
 }
 async function save() {

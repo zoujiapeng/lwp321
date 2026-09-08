@@ -92,14 +92,15 @@ public class StudentService {
             for(var record:parser) {
                 ApiException.require(pending.size()<500,400,"一次最多导入500名学生");
                 var values=new String[7]; int[] limits={40,60,100,100,80,20,30};
-                for(int i=0;i<7;i++) { values[i]=record.get(HEADERS[i]).strip(); ApiException.require(values[i].length()<=limits[i],400,"第"+(record.getRecordNumber()+1)+"行字段过长"); }
+                for(int i=0;i<7;i++) { values[i]=Inputs.clean(record.get(HEADERS[i])); ApiException.require(values[i].length()<=limits[i],400,"第"+(record.getRecordNumber()+1)+"行字段过长"); }
                 ApiException.require(values[0].matches("[A-Za-z0-9_-]{1,40}") && !values[1].isBlank() && !values[4].isBlank(),400,"第"+(record.getRecordNumber()+1)+"行：学号、姓名和班级必须有效");
                 ApiException.require(values[6].matches("[0-9+() -]{0,30}"),400,"第"+(record.getRecordNumber()+1)+"行联系电话格式不正确");
                 ApiException.require(seen.add(values[0].toLowerCase(Locale.ROOT)),400,"文件内存在重复学号："+values[0]);
                 ApiException.require(db.count("SELECT COUNT(*) FROM student WHERE LOWER(student_no)=LOWER(?)",values[0])==0,409,"学号已存在："+values[0]+"；本次没有导入任何学生");
                 pending.add(values);
             }
-        } catch(IllegalArgumentException ex) { throw new ApiException(400,"CSV列数或引号格式不正确"); }
+        } catch(IllegalArgumentException | UncheckedIOException ex) { throw new ApiException(400,"CSV列数或引号格式不正确"); }
+        catch(IOException ex) { throw new ApiException(400,"CSV文本无法解析，请检查引号与编码"); }
         ApiException.require(!pending.isEmpty(),400,"文件没有可导入的学生数据");
         for(var v:pending) db.insert("INSERT INTO student(student_no,name,college,major,class_name,grade,phone,teacher_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",v[0],v[1],v[2],v[3],v[4],v[5],v[6],assigned,Time.now(),Time.now());
         audit.log(actor,"IMPORT_STUDENTS","STUDENT",null,"条数："+pending.size()); return pending.size();

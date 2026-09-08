@@ -30,7 +30,13 @@ public final class Inputs {
         @NotBlank @Size(max=120) String title, @NotBlank @Size(max=10000) String body,
         boolean active, long version) {}
     public record BatchInput(@NotEmpty @Size(max=50) List<@NotNull Long> ids) {}
-    public static String clean(String value) { return value == null ? "" : value.strip(); }
+    public static String clean(String value) {
+        if(value==null) return "";
+        validText(value); return value.strip();
+    }
+    public static void validText(String value) {
+        ApiException.require(value.codePoints().allMatch(c -> c==9 || c==10 || c==13 || (c>=32 && c<=0xD7FF) || (c>=0xE000 && c<=0xFFFD) || (c>=0x10000 && c<=0x10FFFF)),400,"输入包含不能写入Word的控制字符，请清理后重试");
+    }
     public static void password(String password) {
         ApiException.require(password != null && password.length() >= 12 && password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 72,
             400, "密码至少12个字符且不超过72字节");
