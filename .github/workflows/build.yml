@@ -35,6 +35,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Build frontend
         working-directory: frontend
         run: |
@@ -50,27 +53,32 @@ jobs:
         working-directory: backend
         run: mvn -B verify
       - name: Run HTTP integration tests on H2
-        run: |
-          set -euo pipefail
-          if [ -f tests/integration.py ]; then python3 tests/integration.py; fi
+        run: python3 tests/integration.py
       - name: Run HTTP integration tests on MySQL
         env:
           TEST_DB_URL: jdbc:mysql://127.0.0.1:3306/talk_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
           TEST_DB_USER: talk_test
           TEST_DB_PASSWORD: OnlyDisposableCiUser1947
+        run: python3 tests/integration.py
+      - name: Install browser test dependencies
         run: |
-          set -euo pipefail
-          if [ -f tests/integration.py ]; then python3 tests/integration.py; fi
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify actual browser workflow
+        run: python3 tests/browser_smoke.py
       - name: Package source and verification evidence
         if: always()
         run: |
           set -euo pipefail
           mkdir -p /tmp/delivery
+          git rev-parse HEAD > /tmp/delivery/source-commit.txt
+          java -version 2> /tmp/delivery/java-version.txt
+          node --version > /tmp/delivery/node-version.txt
           tar --exclude=.git --exclude=node_modules --exclude=target --exclude=runtime --exclude=backups --exclude=.env --exclude=.env.local -czf /tmp/delivery/source.tar.gz .
           if [ -f backend/target/talk-records.jar ]; then cp backend/target/talk-records.jar /tmp/delivery/; fi
           if [ -d test-results ]; then cp -r test-results /tmp/delivery/; fi
           if [ -d backend/target/surefire-reports ]; then cp -r backend/target/surefire-reports /tmp/delivery/; fi
-          tar -czf /tmp/delivery/maven-cache.tar.gz -C "$HOME" .m2/repository
       - uses: actions/upload-artifact@v4
         if: always()
         with:
