@@ -6,6 +6,7 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.zip.*;
 import org.apache.poi.xwpf.usermodel.*;
+import org.apache.poi.wp.usermodel.HeaderFooterType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 import org.springframework.stereotype.Service;
 
