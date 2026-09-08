@@ -1,0 +1,21 @@
+[Unit]
+Description=Teacher student conversation records
+After=network.target
+
+[Service]
+Type=simple
+User=talk
+Group=talk
+WorkingDirectory=/opt/talk-records
+EnvironmentFile=/opt/talk-records/.env.local
+ExecStart=/usr/bin/java -Xms128m -Xmx512m -jar /opt/talk-records/dist/talk-records.jar
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

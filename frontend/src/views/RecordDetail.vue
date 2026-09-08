@@ -1,0 +1,35 @@
+<script setup>
+import { ref, onMounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { api, notify, download, datetime } from '../api.js'
+import Modal from '../components/Modal.vue'
+const route = useRoute(), router = useRouter(), row = ref(null), loading = ref(true), busy = ref(false), error = ref(''), tab = ref('content')
+const archiveShow = ref(false), confirmed = ref(false), followupShow = ref(false), followupText = ref(''), nextDate = ref(''), resolved = ref(true)
+const sources = [['background', '谈话背景'], ['student_statement', '学生陈述'], ['teacher_advice', '教师建议'], ['agreement', '双方约定']]
+async function load() { loading.value = true; try { row.value = await api('/records/' + route.params.id) } catch (e) { error.value = e.message } finally { loading.value = false } }
+async function archive() {
+  busy.value = true; error.value = ''
+  try { row.value = await api('/records/' + row.value.id + '/archive', { method: 'POST', body: { version: row.value.version, confirmed: confirmed.value } }); archiveShow.value = false; notify('已核对归档，原始正文及基本信息快照不再允许修改') }
+  catch (e) { error.value = e.message } finally { busy.value = false }
+}
+async function remove() {
+  if (!window.confirm('确定永久删除这份草稿？此操作不能撤销。')) return
+  try { await api('/records/' + row.value.id + '?version=' + row.value.version, { method: 'DELETE' }); notify('草稿已删除'); router.push('/records') } catch (e) { notify(e.message, 'error') }
+}
+async function exportDoc() {
+  busy.value = true
+  try { await download('/records/' + row.value.id + '/export', row.value.record_no + '.docx') } catch (e) { notify(e.message, 'error') } finally { busy.value = false }
+}
+async function print() { tab.value = 'content'; await nextTick(); window.print() }
+async function addFollowup() {
+  busy.value = true; error.value = ''
+  try { row.value = await api('/records/' + row.value.id + '/followups', { method: 'POST', body: { content: followupText.value, nextDate: resolved.value ? null : nextDate.value, resolved: resolved.value, version: row.value.version } }); followupShow.value = false; tab.value = 'followups'; notify('跟进记录已追加，原归档正文保持不变') }
+  catch (e) { error.value = e.message } finally { busy.value = false }
+}
+onMounted(load)
+</script>
+<template><p v-if="loading" class="panel">正在加载记录…</p><section v-else-if="!row" class="panel empty"><p>{{ error || '记录不存在' }}</p><RouterLink class="button" to="/records">返回列表</RouterLink></section><template v-else><div class="page-head"><div><h1>谈话记录详情</h1><p>{{ row.record_no }} · {{ row.state === 'ARCHIVED' ? '已归档，原正文固定保存' : '草稿，尚未核对归档' }}</p></div><div class="actions"><RouterLink class="button" to="/records">返回列表</RouterLink><button :disabled="busy" @click="exportDoc">导出Word</button><button @click="print">打印 / 保存PDF</button></div></div><section class="panel"><dl class="meta-grid"><div><dt>学生姓名</dt><dd>{{ row.student_name }}</dd></div><div><dt>学号</dt><dd>{{ row.student_no }}</dd></div><div><dt>班级</dt><dd>{{ row.class_name }}</dd></div><div><dt>谈话教师</dt><dd>{{ row.teacher_name }}</dd></div><div><dt>谈话时间（北京时间）</dt><dd>{{ datetime(row.occurred_at) }}</dd></div><div><dt>谈话地点</dt><dd>{{ row.place }}</dd></div><div><dt>方式与时长</dt><dd>{{ row.mode }} · {{ row.duration_minutes }}分钟</dd></div><div><dt>当前跟进安排</dt><dd>{{ row.followup_status === 'DONE' ? '已完成' : row.followup_date || '未设置' }}</dd></div></dl><div class="actions no-print" style="margin-top:22px"><template v-if="row.state === 'DRAFT'"><RouterLink class="button" :to="'/records/' + row.id + '/edit'">编辑草稿</RouterLink><button class="primary" @click="error = ''; confirmed = false; archiveShow = true">核对并归档</button><button class="danger" @click="remove">删除草稿</button></template><button v-else class="primary" @click="error = ''; followupText = ''; nextDate = ''; resolved = true; followupShow = true">追加跟进</button></div></section>
+  <section class="panel"><div class="tabs no-print"><button :class="{ selected: tab === 'content' }" @click="tab = 'content'">记录正文</button><button :class="{ selected: tab === 'sources' }" @click="tab = 'sources'">原始要点</button><button :class="{ selected: tab === 'followups' }" @click="tab = 'followups'">后续跟进（{{ row.followups.length }}）</button></div><article v-if="tab === 'content'" class="paper"><h2>{{ row.document_title }}</h2><p class="paper-subtitle">{{ row.state === 'ARCHIVED' ? '已核对归档' : '草稿 · 未核对' }} · {{ row.category }}</p><h3>谈话主题：{{ row.topic }}</h3><div class="record-body">{{ row.content || '正文尚未填写，请编辑草稿并生成正文。' }}</div><p class="check-caption no-print" v-if="row.state === 'ARCHIVED'">归档时间：{{ datetime(row.archived_at) }}<br>正文校验值：{{ row.content_hash }}<br>校验值用于比对正文内容，不等同于电子签名。</p><div class="print-only"><p>教师签字：________________　学生签字：________________</p><h3 v-if="row.followups.length">后续跟进</h3><div v-for="followup in row.followups" :key="followup.id" class="timeline-item"><p>{{ datetime(followup.created_at) }} · {{ followup.teacher_name }}</p><p>{{ followup.content }}</p></div></div></article><div v-else-if="tab === 'sources'"><p class="notice">这里保留录入的要点，便于与最终正文核对。未填写的信息不会被系统自动推测。</p><section v-for="[field, title] in sources" :key="field" class="source-block"><h3>{{ title }}</h3><p>{{ row[field] || '未填写' }}</p></section></div><div v-else><div v-if="!row.followups.length" class="empty"><strong>暂无后续跟进</strong><p>谈话归档后，可追加联系情况、约定落实情况和下一次跟进安排。</p></div><div v-for="followup in row.followups" :key="followup.id" class="timeline-item"><small class="muted">{{ datetime(followup.created_at) }} · {{ followup.teacher_name }}</small><p>{{ followup.content }}</p><span class="badge" :class="followup.resolved ? 'success' : ''">{{ followup.resolved ? '完成跟进' : '下次跟进：' + followup.next_date }}</span></div></div></section>
+  <Modal :open="archiveShow" title="核对并归档" @close="!busy && (archiveShow = false)"><p class="notice">归档后，正文、学生基本信息快照及模板标题不可修改或删除。新情况只能通过跟进追加。归档不代表已经完成纸质签名。</p><label class="checkbox"><input v-model="confirmed" type="checkbox">我已逐项核对原始要点与正文，确认与实际谈话一致，无编造内容。</label><p v-if="error" class="error-text" role="alert">{{ error }}</p><div class="form-actions"><button :disabled="busy" @click="archiveShow = false">继续核对</button><button class="primary" :disabled="busy || !confirmed" @click="archive">{{ busy ? '正在归档…' : '确认归档' }}</button></div></Modal>
+  <Modal :open="followupShow" title="追加跟进记录" @close="!busy && (followupShow = false)"><form @submit.prevent="addFollowup"><p class="help">跟进只追加，不覆盖原谈话正文。请记录实际发生的联系或落实情况。</p><label for="followup-content">本次跟进内容 <span class="required">*</span></label><textarea id="followup-content" v-model.trim="followupText" rows="6" maxlength="4000" required></textarea><label class="checkbox"><input v-model="resolved" type="checkbox">本轮跟进已完成</label><template v-if="!resolved"><label for="next-followup">下一次跟进日期 <span class="required">*</span></label><input id="next-followup" v-model="nextDate" type="date" required></template><p v-if="error" class="error-text" role="alert">{{ error }}</p><div class="form-actions"><button type="button" :disabled="busy" @click="followupShow = false">取消</button><button class="primary" :disabled="busy">{{ busy ? '保存中…' : '保存跟进' }}</button></div></form></Modal>
+</template></template>

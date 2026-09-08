@@ -1,0 +1,16 @@
+# 示例配置。外网部署应配置本人持有的域名与有效TLS证书，并把COOKIE_SECURE设为true。
+# 不要将本文件描述为已经配置好HTTPS。
+server {
+    listen 80;
+    server_name _;
+    client_max_body_size 3m;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}

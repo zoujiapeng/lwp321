@@ -1,0 +1,12 @@
+.git
+.env
+.env.local
+**/node_modules
+**/target
+frontend/dist
+backend/src/main/resources/static
+runtime
+backups
+dist
+documents
+test-results
