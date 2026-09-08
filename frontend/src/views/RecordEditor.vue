@@ -1,12 +1,13 @@
 <script setup>
 import { reactive, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api, notify, query, categories } from '../api.js'
 const route = useRoute(), router = useRouter(), id = route.params.id
 const students = ref([]), templates = ref([]), studentSearch = ref(''), busy = ref(false), error = ref(''), dirty = ref(false), loading = ref(true)
+let removeNavigationGuard = () => {}
 const beijing = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()).replace(' ', 'T')
 const form = reactive({ studentId: route.query.studentId ? Number(route.query.studentId) : '', templateId: '', topic: '', category: '学业发展', occurredAt: beijing, durationMinutes: 30, place: '', mode: '面谈', background: '', studentStatement: '', teacherAdvice: '', agreement: '', followupDate: '', content: '', version: 0 })
-watch(form, () => { if (!loading.value) dirty.value = true }, { deep: true })
+watch(form, () => { if (!loading.value) dirty.value = true }, { deep: true, flush: 'sync' })
 async function searchStudents() {
   try {
     const selected = students.value.find(s => s.id === form.studentId)
@@ -27,10 +28,13 @@ async function save() {
   catch (e) { error.value = e.message } finally { busy.value = false }
 }
 function warn(event) { if (dirty.value) { event.preventDefault(); event.returnValue = '' } }
-onBeforeRouteLeave(() => !dirty.value || window.confirm('当前修改尚未保存，确定离开吗？'))
-onBeforeUnmount(() => window.removeEventListener('beforeunload', warn))
+onBeforeUnmount(() => { window.removeEventListener('beforeunload', warn); removeNavigationGuard() })
 onMounted(async () => {
   window.addEventListener('beforeunload', warn)
+  removeNavigationGuard = router.beforeEach((to, from) => {
+    if (to.fullPath !== from.fullPath && dirty.value) return window.confirm('当前修改尚未保存，确定离开吗？')
+    return true
+  })
   try {
     templates.value = (await api('/templates')).filter(t => t.active); form.templateId = templates.value[0]?.id || ''
     if (id) {
