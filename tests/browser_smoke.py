@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real browser checks against this application's disposable localhost test server.
+"""Real Chromium workflow against a disposable localhost application.
 All fixtures are fictional. Requires Playwright and its Chromium browser.
 """
 import datetime as dt
@@ -132,6 +132,7 @@ def main():
             checked('界面批量导出9条Word文件', len(zipfile.ZipFile(OUT/'browser-batch.zip').namelist()) == 9)
             page.goto(app.base + '/#/records/new', wait_until='networkidle')
             page.locator('#talk-topic').fill('未保存的测试内容')
+            expect(page.get_by_text('有尚未保存的修改', exact=True)).to_be_visible()
             dialogs = []
             def accept_dialog(dialog):
                 dialogs.append(dialog.message)
@@ -148,7 +149,11 @@ def main():
                 page.screenshot(path=str(OUT / f'{n:02d}-{name}.png'), full_page=True)
             page.set_viewport_size({'width': 1440, 'height': 1000})
             page.goto(record_url, wait_until='networkidle')
-            checked('刷新后归档记录和跟进仍可读取', '阶段性学习计划沟通' in page.locator('main').inner_text())
+            page.get_by_role('heading', name='谈话记录详情', exact=True).wait_for()
+            expect(page.locator('main')).to_contain_text('阶段性学习计划沟通')
+            page.get_by_role('button', name=re.compile('后续跟进')).click()
+            expect(page.locator('main')).to_contain_text(message)
+            checked('刷新后归档记录和跟进仍可读取')
             checked('全过程无未捕获JavaScript异常', not errors)
             browser.close()
             success = True
