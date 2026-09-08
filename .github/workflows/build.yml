@@ -1,0 +1,55 @@
+name: Build and verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve frontend dependencies
+        working-directory: frontend
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Resolve backend and compiler dependencies
+        working-directory: backend
+        run: mvn -B dependency:go-offline
+      - name: Build application when source is present
+        run: |
+          if [ -f frontend/index.html ]; then
+            cd frontend && npm run build && cd ..
+            mkdir -p backend/src/main/resources/static
+            cp -r frontend/dist/. backend/src/main/resources/static/
+            cd backend && mvn -B verify && cd ..
+            if [ -f tests/integration.py ]; then python3 tests/integration.py; fi
+          fi
+      - name: Package reproducible build environment
+        if: always()
+        run: |
+          mkdir -p /tmp/delivery
+          tar --exclude=.git --exclude=node_modules --exclude=target -czf /tmp/delivery/source.tar.gz .
+          if [ -f backend/target/talk-records.jar ]; then cp backend/target/talk-records.jar /tmp/delivery/; fi
+          if [ -d test-results ]; then cp -r test-results /tmp/delivery/; fi
+          tar -czf /tmp/delivery/maven-cache.tar.gz -C "$HOME" .m2/repository
+          tar -czf /tmp/delivery/frontend-deps.tar.gz -C frontend node_modules package-lock.json
+          mvn_home="$(dirname "$(dirname "$(readlink -f "$(command -v mvn)")")")"
+          tar -czf /tmp/delivery/maven-tool.tar.gz -C "$mvn_home" .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verified-delivery
+          path: /tmp/delivery/
+          retention-days: 7

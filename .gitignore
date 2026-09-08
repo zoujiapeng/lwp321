@@ -1,0 +1,15 @@
+**/target/
+**/node_modules/
+frontend/dist/
+.env
+.env.local
+*.log
+*.pid
+*.mv.db
+*.trace.db
+runtime/
+backups/
+.idea/
+.vscode/
+__pycache__/
+.DS_Store
