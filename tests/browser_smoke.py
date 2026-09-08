@@ -6,9 +6,10 @@ import datetime as dt
 import importlib.metadata
 import json
 import os
+import re
 from pathlib import Path
 import zipfile
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 from integration import Application, Client, INITIAL, PASSWORD, student_payload, require
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,7 +86,7 @@ def main():
             for selector, value in values.items():
                 page.locator(selector).fill(value)
             page.get_by_role('button', name='根据要点生成正文', exact=True).click()
-            page.wait_for_function("document.querySelector('#talk-content').value.includes('学生表示近期课程任务较多')")
+            expect(page.locator('#talk-content')).to_have_value(re.compile('学生表示近期课程任务较多'))
             checked('界面生成正文并保留事实')
             page.screenshot(path=str(OUT / '04-editor.png'), full_page=True)
             page.get_by_role('button', name='保存草稿并查看', exact=True).click()
@@ -143,7 +144,7 @@ def main():
             for n, path, heading, name in [(11,'/','工作台','mobile-dashboard'), (12,'/students','学生档案','mobile-students')]:
                 page.goto(app.base + '/#' + path, wait_until='networkidle')
                 page.get_by_role('heading', name=heading, exact=True).wait_for()
-                checked('390px手机宽度' + heading + '无整页横向溢出', page.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'))
+                checked('390px手机宽度' + heading + '无整页横向溢出', page.evaluate('() => document.documentElement.scrollWidth <= window.innerWidth + 1'))
                 page.screenshot(path=str(OUT / f'{n:02d}-{name}.png'), full_page=True)
             page.set_viewport_size({'width': 1440, 'height': 1000})
             page.goto(record_url, wait_until='networkidle')
